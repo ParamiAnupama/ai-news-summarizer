@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI News Summarizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        nav { background: #333; color: white; display: flex; padding: 10px; }
+        nav a { color: white; margin-right: 20px; text-decoration: none; cursor: pointer; }
+        nav a.active { font-weight: bold; text-decoration: underline; }
+        .tab-content { padding: 20px; display: none; }
+        .tab-content.active { display: block; }
+        .article-card { border:1px solid #ddd; padding:10px; margin:10px; border-radius:8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 8px; text-align: left; }
+        .chart-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; }
+        .chart-box { flex: 1; min-width: 300px; max-width: 500px; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a id="tabArticles" class="active">Articles</a>
+        <a id="tabDashboard">Dashboard</a>
+    </nav>
+
+    <!-- Articles Tab -->
+    <div id="articlesTab" class="tab-content active">
+        <h1>📰 AI News Summaries</h1>
+        <div id="news"></div>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div id="dashboardTab" class="tab-content">
+        <h1>📊 Dashboard</h1>
+
+        <div class="chart-container">
+            <div class="chart-box">
+                <h2>Sentiment Distribution (Chart.js)</h2>
+                <canvas id="sentimentChart" style="max-width:100%; max-height:400px;"></canvas>
+            </div>
+
+            <div class="chart-box">
+                <h2>Articles per Source (ApexCharts)</h2>
+                <div id="sourceChart" style="height:400px;"></div>
+            </div>
+        </div>
+
+        <h2>Articles Table</h2>
+        <table id="articlesTable">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Summary</th>
+                    <th>Source</th>
+                    <th>Published At</th>
+                    <th>Sentiment</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Tab switching
+        const tabArticles = document.getElementById("tabArticles");
+        const tabDashboard = document.getElementById("tabDashboard");
+        const articlesTab = document.getElementById("articlesTab");
+        const dashboardTab = document.getElementById("dashboardTab");
+
+        tabArticles.addEventListener("click", () => {
+            tabArticles.classList.add("active");
+            tabDashboard.classList.remove("active");
+            articlesTab.classList.add("active");
+            dashboardTab.classList.remove("active");
+        });
+
+        tabDashboard.addEventListener("click", () => {
+            tabDashboard.classList.add("active");
+            tabArticles.classList.remove("active");
+            dashboardTab.classList.add("active");
+            articlesTab.classList.remove("active");
+        });
+
+        async function loadNews() {
+            const res = await fetch("/news");
+            const data = await res.json();
+
+            const newsContainer = document.getElementById("news");
+            const tableBody = document.querySelector("#articlesTable tbody");
+            newsContainer.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            let sentimentCounts = { Positive: 0, Neutral: 0, Negative: 0 };
+            let sourceCounts = {};
+
+            data.forEach(article => {
+                // Articles tab
+                newsContainer.innerHTML += `
+                    <div class="article-card">
+                        <h3>${article.title}</h3>
+                        <p>${article.summary}</p>
+                        <small>${article.source} | ${article.publishedAt} | Sentiment: ${article.sentiment}</small>
+                    </div>
+                `;
+
+                // Dashboard table
+                tableBody.innerHTML += `
+                    <tr>
+                        <td>${article.title}</td>
+                        <td>${article.summary}</td>
+                        <td>${article.source}</td>
+                        <td>${article.publishedAt}</td>
+                        <td>${article.sentiment}</td>
+                    </tr>
+                `;
+
+                // Count sentiments
+                if (article.sentiment in sentimentCounts) sentimentCounts[article.sentiment]++;
+
+                // Count articles per source
+                const src = article.source || "Unknown";
+                sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+            });
+
+            // Chart.js Pie Chart for Sentiments
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(sentimentCounts),
+                    datasets: [{
+                        label: 'Sentiment Count',
+                        data: Object.values(sentimentCounts),
+                        backgroundColor: ['#4caf50', '#ffeb3b', '#f44336']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // ApexCharts Bar Chart for Articles per Source
+            var options = {
+                series: [{
+                    name: 'Articles',
+                    data: Object.values(sourceCounts)
+                }],
+                chart: { type: 'bar', height: 400 },
+                xaxis: { categories: Object.keys(sourceCounts), labels: { rotate: -45 } },
+                colors: ['#1f77b4'],
+                dataLabels: { enabled: true }
+            };
+            var sourceChart = new ApexCharts(document.querySelector("#sourceChart"), options);
+            sourceChart.render();
+        }
+
+        loadNews();
+    </script>
+</body>
+</html>
